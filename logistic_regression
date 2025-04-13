@@ -1,0 +1,49 @@
+print("Logística")
+for penal in ["l2", None]:
+  classifier = LogisticRegression(penalty = penal)
+
+  media_com_smote = mean(validacao_cruzada(5, classifier,X_train, y_train, oversampling = True))
+
+  classifier.fit(X_train_resampled, y_train_resampled)
+  y_pred_train = classifier.predict(X_train_resampled)
+  accuracy_train = accuracy_score(y_train_resampled, y_pred_train)
+
+  y_pred_test = classifier.predict(X_test)
+  accuracy_test = accuracy_score(y_test, y_pred_test)
+  precision_test = precision_score(y_test, y_pred_test)
+  auc_train = roc_auc_score(y_train_resampled, classifier.decision_function(X_train_resampled))
+  auc = roc_auc_score(y_test, classifier.decision_function(X_test))
+  y_scores = classifier.predict_proba(X_test)[:, 1]
+  y_scores_positivos = y_scores[y_test == 1]
+  y_scores_negativos = y_scores[y_test == 0]
+  ks_stat, p_value = ks_2samp(y_scores_positivos, y_scores_negativos)
+
+  print("-"*50)
+
+
+  print(f"Regressão Logística - {penal}")
+  print(f'Acurácia com SMOTE: {media_com_smote}')
+  print(f"Acurácia no Treino: {accuracy_score(y_train_resampled, y_pred_train):.4f}")
+  print(f"Acurácia no Teste: {accuracy_score(y_test, y_pred_test):.4f}")
+  print(f"Precisão no Teste: {precision_test:.4f}")
+  print(f'Área sob Curva-ROC Treino: {auc_train:.4f} \n')
+  print(f'Área sob Curva-ROC Teste: {auc:.4f} \n')
+  print(f"Valor p: {p_value:.8f}")
+  print(f"Estatística KS: {ks_stat:.4f}")
+  print(f'Matriz de Confusão: \n{confusion_matrix(y_test, classifier.predict(X_test), labels=[0, 1])}\n')
+  print(f'Matriz de Confusão em Porcentagem: \n {confusion_matrix(y_test, classifier.predict(X_test), labels=[0, 1], normalize="all")} \n')
+  print("-"*45)
+
+algo = ["Logística - Sem Penalidade","Logística - Penalidade Ridge"]
+classifier = [LogisticRegression(penalty = penal) for penal in [None,"l2"]]
+roc(classifier, algo, X_train_resampled, y_train_resampled, X_test, y_test)
+
+classifier = [LogisticRegression(penalty = penal) for penal in [None,"l2"]]
+ks(classifier, X_train_resampled, y_train_resampled, X_test, y_test)
+
+classifier = [LogisticRegression(penalty = penal) for penal in [None,"l2"]]
+matriz_confusao(classifier, X_train_resampled, y_train_resampled, X_test, y_test)
+
+classifier = [LogisticRegression(penalty = penal) for penal in [None,"l2"]]
+coef(classifier, data, X_train_resampled, y_train_resampled)
+coef_neg(classifier, data, X_train_resampled, y_train_resampled)
