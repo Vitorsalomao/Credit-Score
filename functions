@@ -217,3 +217,45 @@ def coef_neg(modelos, data, X, y):
 
         # Exibindo o gráfico
         plt.show()
+
+import matplotlib.pyplot as plt
+import pandas as pd
+
+def influencia(modelos, data, X, y):
+    for modelo in modelos:
+        modelo.fit(X_train_resampled, y_train_resampled)
+
+        importancia_variaveis = modelo.feature_importances_
+        importancia_absoluta = abs(importancia_variaveis)
+
+        indices_ordenados = importancia_absoluta.argsort()[::-1]
+
+        df_importancia = pd.DataFrame({'Variável': data.columns[0:-1], 'Importância': importancia_variaveis})
+        df_importancia = df_importancia.sort_values(by="Importância", ascending=False)
+
+        df_importancia['Importância'] = df_importancia['Importância'] * 100 / df_importancia['Importância'].sum()
+
+        if df_importancia['Importância'].max() < 40:
+          plt.figure(figsize=(8, 7))
+        else:
+          plt.figure(figsize=(12,7))
+        bars = plt.barh(df_importancia['Variável'][0:5], df_importancia['Importância'][0:5], color='navy')
+
+        for bar in bars:
+            plt.text(
+                bar.get_width() + 2,  # Posição X (um pouco à direita da barra)
+                bar.get_y() + bar.get_height() / 2,  # Posição Y (meio da barra)
+                f'{bar.get_width():.1f}%',  # Valor da porcentagem com 1 casa decimal
+                ha='left',  # Alinhamento horizontal do texto
+                va='center',  # Alinhamento vertical do texto
+                color='black',  # Cor do texto
+                fontsize=25
+            )
+
+        plt.xlim(0, 100)  # Ajustando o eixo X para exibir 0 a 100
+        plt.xlabel('Importância', fontsize=20)
+        plt.ylabel('Variáveis', fontsize=20)
+        plt.yticks(fontsize=20)
+        plt.xticks(fontsize=16)
+        plt.gca().invert_yaxis()  # Inverte a ordem das variáveis para melhor visualização
+        plt.show()
