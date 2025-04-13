@@ -1,0 +1,219 @@
+def validacao_cruzada(k, modelo, X, y, oversampling=False):
+    kfold = StratifiedKFold(n_splits=k, random_state = 101, shuffle = True)
+    acuracias_split = []
+
+    for idx, (idx_treino, idx_validacao) in enumerate(kfold.split(X,y)):
+        X_split_treino = X.iloc[idx_treino, :]
+        y_split_treino = y.iloc[idx_treino]
+        if oversampling:
+            sm = SMOTE(random_state=42)
+            X_split_treino, y_split_treino = sm.fit_resample(X_split_treino, y_split_treino)
+
+        modelo.fit(X_split_treino, y_split_treino.values.flatten())
+        y_pred_train = modelo.predict(X_split_treino)
+
+        X_split_validacao = X.iloc[idx_validacao, :]
+        y_split_validacao = y.iloc[idx_validacao]
+
+        predicoes_validacao = modelo.predict(X_split_validacao)
+
+        acuracia_split = accuracy_score(y_split_validacao, predicoes_validacao)
+        acuracias_split.append(acuracia_split)
+
+
+    return acuracias_split
+
+
+    def roc(modelos, nomes, X_train, y_train, X_test, y_test, save = False):
+  plt.figure(figsize=(12,8))
+  for modelo, nome in zip(modelos, nomes):
+    modelo.fit(X_train, y_train)
+    fpr, tpr, _ = roc_curve(y_test, modelo.predict_proba(X_test)[:, 1])
+    auc = roc_auc_score(y_test, modelo.predict_proba(X_test)[:, 1])
+
+    plt.plot(fpr, tpr, label=f'{nome} (Área = {auc:.4f})', linewidth=2)
+
+
+  plt.plot([0, 1], [0, 1], 'k--')
+  plt.xlabel('Taxa de Falsos Positivos', fontsize = 18)
+  plt.ylabel('Taxa de Verdadeiros Positivos', fontsize = 18)
+  plt.legend(loc='lower right', fontsize = 15)
+  if save:
+    plt.savefig(f'drive/MyDrive/imagens_mono/roc_logistica.png', dpi=300)
+  plt.show()
+
+
+  def ks(modelos, X_train, y_train, X_test, y_test, save = False, title = False):
+  for modelo in modelos:
+    modelo.fit(X_train, y_train)
+    y_scores = modelo.predict_proba(X_test)[:, 1]
+    y_scores_positivos = y_scores[y_test == 1]
+    y_scores_negativos = y_scores[y_test == 0]
+    ks_stat, p_value = ks_2samp(y_scores_positivos, y_scores_negativos)
+
+
+    y_scores_positivos = np.sort(y_scores_positivos)
+    y_scores_negativos = np.sort(y_scores_negativos)
+
+    cdf_positivos = np.arange(1, len(y_scores_positivos) + 1) / len(y_scores_positivos)
+    cdf_negativos = np.arange(1, len(y_scores_negativos) + 1) / len(y_scores_negativos)
+    interp_cdf_positivos = interp1d(y_scores_positivos, cdf_positivos, bounds_error=False, fill_value=(0, 1))
+    interp_cdf_negativos = interp1d(y_scores_negativos, cdf_negativos, bounds_error=False, fill_value=(0, 1))
+
+    # Distâncias
+    grid = np.linspace(min(y_scores), max(y_scores), 500)
+    distancias = np.abs(interp_cdf_positivos(grid) - interp_cdf_negativos(grid))
+    ks_max_dist = np.max(distancias)
+    ks_ponto_maximo = grid[np.argmax(distancias)]
+    print(ks_ponto_maximo)
+
+    cdf_positivos_ponto = interp_cdf_positivos(ks_ponto_maximo)
+    cdf_negativos_ponto = interp_cdf_negativos(ks_ponto_maximo)
+
+    plt.figure(figsize=(10,9))
+    plt.plot(y_scores_positivos, cdf_positivos, color='red', label='Bons Pagadores', linewidth=2)
+    plt.plot(y_scores_negativos, cdf_negativos, color='blue', label='Maus Pagadores', linewidth=2)
+
+    plt.text(ks_ponto_maximo, 0.5, f" KS: {ks_stat:.4f}", verticalalignment='bottom', fontsize=15)
+
+    plt.vlines(x=ks_ponto_maximo, ymin=min(cdf_positivos_ponto, cdf_negativos_ponto),
+              ymax=max(cdf_positivos_ponto, cdf_negativos_ponto),
+              color='black', linestyle='--')
+
+    if title:
+      plt.title(f'Kolmogorov-Smirnov - {modelo.__class__.__name__}')
+
+    plt.xlabel('Escore', fontsize = 18)
+    plt.ylabel('Função de Distribuição Acumulada', fontsize = 18)
+    plt.xticks(fontsize=13)
+    plt.yticks(fontsize=13)
+    plt.legend(fontsize = 15)
+    plt.grid(True, linestyle='--', alpha=0.7)
+    if save:
+      for idx, modelo in enumerate(modelos):
+        plt.savefig(f'drive/MyDrive/imagens_mono/ks_{modelo.__class__.__name__}_{idx+1}.png', dpi=300)
+    plt.show()
+
+
+    def matriz_confusao(modelos, X_train, y_train, X_test, y_test, save= False):
+  for modelo in modelos:
+    modelo.fit(X_train, y_train)
+    y_pred = modelo.predict(X_test)
+    cm = confusion_matrix(y_test, y_pred)
+    cm = np.array([[cm[1,1], cm[1,0]],  # VP, FN
+                                [cm[0,1], cm[0,0]]]) # FP, VN
+
+    cm = cm.astype('float') / cm.sum() * 100
+    labels = ["Adimplente", "Inadimplente"]
+
+    plt.figure(figsize=(6,5))
+    sns.heatmap(cm, annot=True, fmt=".2f", cmap="Greys", xticklabels=labels, yticklabels=labels, annot_kws={"size": 16})
+    plt.ylabel("Real", fontsize = 14)
+    plt.xlabel("Predito", fontsize = 14)
+    plt.xticks(fontsize=12)
+    plt.yticks(fontsize=12)
+    if save:
+      for idx, modelo in enumerate(modelos):
+        plt.savefig(f'drive/MyDrive/imagens_mono/matriz_confusa_{modelo.__class__.__name__}_{idx+1}.png', dpi=300)
+    plt.show()
+
+    import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+
+def coef(modelos, data, X, y):
+    for modelo in modelos:
+        modelo.fit(X, y)
+        importancia_absoluta = abs(modelo.coef_[0])
+
+        # Criando DataFrame ordenado por importância
+        df_importancia = pd.DataFrame({'Variável': data.columns[0:-1], 'Coeficiente': modelo.coef_[0]})
+        df_importancia = df_importancia.sort_values(by="Coeficiente", ascending=False)
+
+        # Ajustando nomes de variáveis longas
+        df_importancia['Variável'] = df_importancia['Variável'].apply(lambda x: x.replace('(', '\n('))
+
+        # Pegando as 5 variáveis mais importantes
+        df_importancia = df_importancia.head(5).sort_values(by="Coeficiente")
+
+
+        plt.figure(figsize=(10, 8))
+
+        bars = plt.barh(df_importancia['Variável'], df_importancia['Coeficiente'], color='blue')
+
+        # Adicionando rótulos dentro das barras para melhor legibilidade
+        for bar in bars:
+            plt.text(
+                bar.get_width() + 0.05,  # Posição X um pouco à direita da barra
+                bar.get_y() + bar.get_height() / 2,  # Centraliza o texto na altura da barra
+                f'{bar.get_width():.4f}',  # Formatação do coeficiente
+                ha='left',  # Alinhamento à esquerda do texto
+                va='center',  # Centralização vertical
+                color='black',  # Cor do texto
+                fontsize=16
+            )
+
+        # Ajuste do eixo X para garantir que os valores fiquem visíveis
+        max_coef = df_importancia['Coeficiente'].max()
+        plt.xlim(0, max_coef + 1)
+
+        # Rótulos e título
+        plt.xlabel('Coeficiente', fontsize=14)
+        plt.ylabel('Variáveis', fontsize=14)
+       # plt.title('Maiores Coeficientes do Modelo', fontsize=16)
+
+        plt.xticks(fontsize=14)  # Ajustando o tamanho da fonte para os rótulos do eixo X
+        plt.yticks(fontsize=18)
+
+        # Exibindo o gráfico
+        plt.show()
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+
+def coef_neg(modelos, data, X, y):
+    for modelo in modelos:
+        modelo.fit(X, y)
+        importancia_absoluta = abs(modelo.coef_[0])
+
+        # Criando DataFrame ordenado por importância
+        df_importancia = pd.DataFrame({'Variável': data.columns[0:-1], 'Coeficiente': modelo.coef_[0]})
+        df_importancia = df_importancia.sort_values(by="Coeficiente", ascending=True)
+
+        # Ajustando nomes de variáveis longas
+        df_importancia['Variável'] = df_importancia['Variável'].apply(lambda x: x.replace('(', '\n('))
+
+        # Pegando as 5 variáveis mais importantes
+        df_importancia = df_importancia.head(5).sort_values(by="Coeficiente")
+
+
+        plt.figure(figsize=(9.25, 9.20))
+
+        bars = plt.barh(df_importancia['Variável'], df_importancia['Coeficiente'], color='red')
+
+        # Adicionando rótulos dentro das barras para melhor legibilidade
+        for bar in bars:
+            plt.text(
+                bar.get_width() - 0.3,  # Posição X um pouco à direita da barra
+                bar.get_y() + bar.get_height() / 2,  # Centraliza o texto na altura da barra
+                f'{bar.get_width():.4f}',  # Formatação do coeficiente
+                ha='left',  # Alinhamento à esquerda do texto
+                va='center',  # Centralização vertical
+                color='black',  # Cor do texto
+                fontsize=20
+            )
+
+        # Ajuste do eixo X para garantir que os valores fiquem visíveis
+        max_coef = df_importancia['Coeficiente'].min()
+        plt.xlim(max_coef - 1, 0)
+
+        # Rótulos e título
+        plt.xlabel('Coeficiente', fontsize=17)
+        plt.ylabel('Variáveis', fontsize=15)
+       # plt.title('Maiores Coeficientes do Modelo', fontsize=16)
+
+        plt.xticks(fontsize=16)  # Ajustando o tamanho da fonte para os rótulos do eixo X
+        plt.yticks(fontsize=22)
+
+        # Exibindo o gráfico
+        plt.show()
